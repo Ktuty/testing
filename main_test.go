@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"sort"
+	"sync"
 	"testing"
 	"testing/quick"
 	"time"
@@ -401,6 +402,78 @@ func TestCount(t *testing.T) {
 				t.Errorf("Count() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+func TestConcurrentSum(t *testing.T) {
+	tests := []struct {
+		name     string
+		numbers  []int
+		expected int
+	}{
+		{
+			name:     "Empty slice",
+			numbers:  []int{},
+			expected: 0,
+		},
+		{
+			name:     "Single element",
+			numbers:  []int{42},
+			expected: 42,
+		},
+		{
+			name:     "Multiple elements",
+			numbers:  []int{1, 2, 3, 4, 5},
+			expected: 15,
+		},
+		{
+			name:     "Large slice",
+			numbers:  []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10},
+			expected: 55,
+		},
+		{
+			name:     "Negative numbers",
+			numbers:  []int{-1, -2, -3, -4, -5},
+			expected: -15,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := ConcurrentSum(tt.numbers)
+			if result != tt.expected {
+				t.Errorf("ConcurrentSum() = %v, want %v", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestConcurrentSumConcurrent(t *testing.T) {
+	numbers := []int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}
+	expected := 55
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	results := make([]int, 0)
+
+	// Запускаем 100 горутин для проверки конкурентности
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			result := ConcurrentSum(numbers)
+			mu.Lock()
+			results = append(results, result)
+			mu.Unlock()
+		}()
+	}
+
+	wg.Wait()
+
+	// Проверяем, что все результаты корректны
+	for _, result := range results {
+		if result != expected {
+			t.Errorf("ConcurrentSum() = %v, want %v", result, expected)
+		}
 	}
 }
 

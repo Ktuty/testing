@@ -140,6 +140,55 @@ func Count(n int) int {
 	return count
 }
 
+func ConcurrentSum(numbers []int) int {
+	if len(numbers) == 0 {
+		return 0
+	}
+
+	if len(numbers) == 1 {
+		return numbers[0]
+	}
+
+	numWorkers := 5
+	chunkSize := (len(numbers) + numWorkers - 1) / numWorkers
+
+	var wg sync.WaitGroup
+	wg.Add(numWorkers)
+
+	// Канал для передачи частичных сумм
+	partialSums := make(chan int, numWorkers)
+
+	for i := 0; i < numWorkers; i++ {
+		go func(start int) {
+			defer wg.Done()
+			end := start + chunkSize
+			if end > len(numbers) {
+				end = len(numbers)
+			}
+
+			sum := 0
+			for _, num := range numbers[start:end] {
+				sum += num
+			}
+			partialSums <- sum
+		}(i * chunkSize)
+	}
+
+	// Закрываем канал после завершения всех горутин
+	go func() {
+		wg.Wait()
+		close(partialSums)
+	}()
+
+	// Суммируем частичные суммы
+	totalSum := 0
+	for sum := range partialSums {
+		totalSum += sum
+	}
+
+	return totalSum
+}
+
 func CheckPassword(pswrd string) error {
 	if pswrd == "" {
 		return fmt.Errorf("empty string")
